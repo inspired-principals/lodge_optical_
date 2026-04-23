@@ -14,3 +14,4 @@ __pycache__/
 .vscode/
 backend/test.db
 backend/lodge_optical.db
+data/system-memory.sqlite

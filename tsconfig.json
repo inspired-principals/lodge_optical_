@@ -28,7 +28,9 @@
     "noEmit": true
   },
   "include": [
+    "engine/**/*",
     "src/**/*",
+    "modules/**/*",
     "server.ts",
     "vite.config.ts"
   ],

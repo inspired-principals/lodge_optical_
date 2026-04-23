@@ -1,0 +1,57 @@
+[
+  {
+    "timestamp": "2026-04-23T05:33:26.191Z",
+    "config": {
+      "features": {
+        "triageAI": true,
+        "clientPortal": false
+      },
+      "activeModules": {
+        "triage": "triage-engine-v2"
+      },
+      "modules": {
+        "triage": [
+          "triage-engine-v1",
+          "triage-engine-v2"
+        ]
+      },
+      "scoring": {
+        "strategy": "priorityConfidence",
+        "active": true
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-23T06:02:08.209Z",
+    "config": {
+      "features": {
+        "triageAI": true,
+        "clientPortal": false
+      },
+      "activeModules": {
+        "triage": "triage-engine-v2"
+      },
+      "modules": {
+        "triage": [
+          "triage-engine-v1",
+          "triage-engine-v2"
+        ]
+      },
+      "scoring": {
+        "strategy": "multiObjective",
+        "active": true,
+        "weights": {
+          "priority": 0.3,
+          "confidence": 0.25,
+          "speed": 0.15,
+          "outcome": 0.2,
+          "riskPenalty": 0.1
+        },
+        "thresholds": {
+          "minConfidence": 0.5,
+          "maxResponseTime": 2000
+        }
+      }
+    }
+  }
+]

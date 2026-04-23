@@ -37,13 +37,21 @@ export default function ControlSurface() {
             <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Digital Triage Intake</h1>
             <p className="mt-2 text-sm text-slate-400">Live case list from FastAPI storage. This is the current system of record for triage submissions.</p>
           </div>
-          <button
-            onClick={() => void loadCases()}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-white/10"
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/control/system"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs font-black uppercase tracking-widest text-cyan-100 transition hover:bg-cyan-500/20"
+            >
+              System Control
+            </Link>
+            <button
+              onClick={() => void loadCases()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-white/10"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
