@@ -318,17 +318,16 @@ export default function SiteAssistant() {
   return (
     <>
       <div className="fixed bottom-4 right-3 z-[140] flex flex-col items-end gap-3 sm:bottom-5 sm:right-5">
-        {!isOpen && (
-          <div className="rounded-full bg-slate-950/90 px-4 py-2 text-xs font-semibold text-white shadow-xl backdrop-blur-md">
-            Need help choosing the right next step?
-          </div>
-        )}
-
         <button
           onClick={() => setIsOpen((prev) => !prev)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_20px_40px_rgba(37,99,235,0.4)] transition hover:scale-105"
+          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_20px_40px_rgba(37,99,235,0.4)] transition hover:scale-105"
           aria-label="Open site assistant"
         >
+          {!isOpen && (
+            <span className="pointer-events-none absolute right-full top-1/2 mr-3 hidden -translate-y-1/2 whitespace-nowrap rounded-full bg-slate-950/90 px-4 py-2 text-xs font-semibold text-white opacity-0 shadow-xl backdrop-blur-md transition duration-200 group-hover:opacity-100 sm:block">
+              Need help choosing the right next step?
+            </span>
+          )}
           {isOpen ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
         </button>
       </div>

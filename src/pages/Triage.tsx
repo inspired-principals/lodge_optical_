@@ -8,6 +8,8 @@ import * as camUtils from '@mediapipe/camera_utils';
 import { jsPDF } from 'jspdf';
 import { ClinicalEmitter } from '@shared/services/emitter';
 import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
+import { submitTriage } from '../services/triageApi';
+import type { AdminTriageCase, TriageSubmissionRequest } from '../types/triageSubmission';
 
 // Enhanced triage types
 interface SymptomData {
@@ -46,6 +48,12 @@ interface RiskAssessment {
   recommendedSpecialty: string;
   urgencyDays: number;
   clinicalNotes: string[];
+}
+
+interface PatientIdentity {
+  full_name: string;
+  email: string;
+  phone: string;
 }
 
 const SNELLEN_LEVELS = [200, 100, 70, 50, 40, 30, 25, 20];
@@ -100,6 +108,14 @@ export default function Triage() {
     urgencyDays: 30,
     clinicalNotes: []
   });
+  const [patientIdentity, setPatientIdentity] = useState<PatientIdentity>({
+    full_name: '',
+    email: '',
+    phone: '',
+  });
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [submissionError, setSubmissionError] = useState('');
+  const [submittedCase, setSubmittedCase] = useState<AdminTriageCase | null>(null);
 
   const webcamRef = useRef<Webcam>(null);
   const faceMeshRef = useRef<FaceMesh | null>(null);
@@ -253,27 +269,31 @@ export default function Triage() {
     // Step completion tracking
     ClinicalEmitter.emit('triage_step_completed', { step });
     
-    if (step === 'report') {
+    if (step === 'report' && submissionStatus === 'idle') {
       setIsExamComplete(true);
       ClinicalEmitter.emit('triage_completed');
 
-      // Calculate final risk assessment
       const assessment = calculateRiskAssessment(diagnosticResults, symptoms);
       setRiskAssessment(assessment);
 
-      // Store comprehensive results
-      localStorage.setItem('lodge_comprehensive_triage', JSON.stringify({
-        symptoms,
-        diagnosticResults,
-        riskAssessment: assessment,
-        date: new Date().toISOString(),
-        sessionId: `triage_${Date.now()}`
-      }));
+      setSubmissionStatus('submitting');
+      setSubmissionError('');
+
+      submitTriage(buildTriageSubmission(assessment))
+        .then((savedCase) => {
+          setSubmittedCase(savedCase);
+          setSubmissionStatus('success');
+        })
+        .catch((error: Error) => {
+          setSubmissionStatus('error');
+          setSubmissionError(error.message || 'Triage submission failed.');
+        });
     }
-  }, [step, diagnosticResults, symptoms, calculateRiskAssessment]);
+  }, [step, diagnosticResults, symptoms, calculateRiskAssessment, submissionStatus, buildTriageSubmission]);
 
   const [results, setResults] = useState<{os: string, od: string}>({ os: 'Pending', od: 'Pending' });
   const currentStepIndex = TRIAGE_STEPS.findIndex((item) => item.key === step);
+  const hasPatientIdentity = patientIdentity.full_name.trim().length >= 2 && patientIdentity.email.trim().length > 0;
 
   const resetExam = () => {
     setExamState({
@@ -284,7 +304,73 @@ export default function Triage() {
       history: []
     });
     setStep('consent');
+    setSubmissionStatus('idle');
+    setSubmissionError('');
+    setSubmittedCase(null);
   };
+
+  function buildTriageSubmission(assessment: RiskAssessment): TriageSubmissionRequest {
+    const symptomSummary = [
+      symptoms.pain > 0 ? `eye pain:${symptoms.pain}` : null,
+      symptoms.dryness > 0 ? `dryness:${symptoms.dryness}` : null,
+      symptoms.glare > 0 ? `glare:${symptoms.glare}` : null,
+      symptoms.halos > 0 ? `halos:${symptoms.halos}` : null,
+      symptoms.distortion > 0 ? `distortion:${symptoms.distortion}` : null,
+      symptoms.fluctuation > 0 ? `fluctuation:${symptoms.fluctuation}` : null,
+      symptoms.redness > 0 ? `redness:${symptoms.redness}` : null,
+      symptoms.discharge > 0 ? `discharge:${symptoms.discharge}` : null,
+      symptoms.itching > 0 ? `itching:${symptoms.itching}` : null,
+      symptoms.burning > 0 ? `burning:${symptoms.burning}` : null,
+      symptoms.foreignBody ? 'foreign body sensation' : null,
+      symptoms.suddenChange ? 'sudden vision change' : null,
+      symptoms.trauma ? 'recent ocular trauma' : null,
+      symptoms.surgery ? 'post-surgical history' : null,
+      symptoms.contacts ? 'contact lens wearer' : null,
+      symptoms.glasses ? 'wears glasses' : null,
+    ].filter(Boolean) as string[];
+
+    const history = [
+      symptoms.surgery ? 'Reports previous ocular surgery.' : null,
+      symptoms.trauma ? 'Reports recent ocular trauma.' : null,
+      symptoms.contacts ? 'Uses contact lenses.' : null,
+      symptoms.glasses ? 'Uses prescription glasses.' : null,
+      isManualMode ? 'Assessment completed in manual mode.' : 'Assessment completed with camera-assisted mode.',
+    ].filter(Boolean).join(' ');
+
+    const notes = [
+      `Visual acuity OS ${diagnosticResults.visualAcuity.os}, OD ${diagnosticResults.visualAcuity.od}.`,
+      `Contrast sensitivity ${diagnosticResults.contrastSensitivity.toFixed(1)}/10.`,
+      assessment.clinicalNotes.length > 0 ? `Clinical notes: ${assessment.clinicalNotes.join(' | ')}` : null,
+    ].filter(Boolean).join(' ');
+
+    return {
+      patient: {
+        full_name: patientIdentity.full_name.trim(),
+        email: patientIdentity.email.trim(),
+        phone: patientIdentity.phone.trim() || undefined,
+      },
+      triage: {
+        symptoms: symptomSummary,
+        history,
+        severity_score: assessment.score,
+        notes,
+        risk_level: assessment.level,
+        recommended_specialty: assessment.recommendedSpecialty,
+        urgency_days: assessment.urgencyDays,
+        clinical_notes: assessment.clinicalNotes,
+        diagnostic_results: {
+          visualAcuity: diagnosticResults.visualAcuity,
+          refraction: diagnosticResults.refraction,
+          contrastSensitivity: diagnosticResults.contrastSensitivity,
+          colorVision: diagnosticResults.colorVision,
+          astigmatismRegularity: diagnosticResults.astigmatismRegularity,
+          dryEyeScore: diagnosticResults.dryEyeScore,
+          keratoconusRisk: diagnosticResults.keratoconusRisk,
+          postSurgicalRisk: diagnosticResults.postSurgicalRisk,
+        },
+      },
+    };
+  }
 
   const generatePDF = () => {
     const doc = new jsPDF();
@@ -469,19 +555,6 @@ export default function Triage() {
   }, [step]);
 
   useEffect(() => {
-    if (step === 'report') {
-      const osLevel = Math.min(...examState.history.filter(h => h.eye === 'OS' && h.correct).map(h => h.level));
-      const odLevel = Math.min(...examState.history.filter(h => h.eye === 'OD' && h.correct).map(h => h.level));
-      
-      localStorage.setItem('lodge_last_acuity', JSON.stringify({
-        os: osLevel === Infinity ? '20/200+' : `20/${osLevel}`,
-        od: odLevel === Infinity ? '20/200+' : `20/${odLevel}`,
-        date: new Date().toISOString()
-      }));
-    }
-  }, [step, examState.history]);
-
-  useEffect(() => {
     if (step === 'acuity') {
       const recognition = startSpeech();
       return () => recognition && (recognition as any)();
@@ -595,9 +668,40 @@ export default function Triage() {
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-slate-300">Useful for identifying whether a specialty assessment may be worthwhile.</div>
               </div>
 
+              <div className="grid gap-4 md:grid-cols-3 mb-10">
+                <input
+                  type="text"
+                  value={patientIdentity.full_name}
+                  onChange={(event) => setPatientIdentity((current) => ({ ...current, full_name: event.target.value }))}
+                  placeholder="Full name"
+                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-4 text-sm text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
+                />
+                <input
+                  type="email"
+                  value={patientIdentity.email}
+                  onChange={(event) => setPatientIdentity((current) => ({ ...current, email: event.target.value }))}
+                  placeholder="Email address"
+                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-4 text-sm text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
+                />
+                <input
+                  type="tel"
+                  value={patientIdentity.phone}
+                  onChange={(event) => setPatientIdentity((current) => ({ ...current, phone: event.target.value }))}
+                  placeholder="Phone number"
+                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-4 text-sm text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none"
+                />
+              </div>
+
+              {!hasPatientIdentity && (
+                <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+                  Enter at least your name and email before starting the assessment. This is the patient record used by the clinical team.
+                </div>
+              )}
+
               <div className="flex flex-col md:flex-row gap-4">
                 <button 
                   onClick={() => setStep('symptoms')}
+                  disabled={!hasPatientIdentity}
                   className="flex-1 py-5 px-8 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black tracking-widest text-xs uppercase flex items-center justify-between transition-all shadow-[0_8px_30px_rgba(37,99,235,0.4)] group"
                 >
                   <span>Start Comprehensive Assessment</span>
@@ -605,6 +709,7 @@ export default function Triage() {
                 </button>
                 <button 
                   onClick={() => { setIsManualMode(true); setStep('symptoms'); }}
+                  disabled={!hasPatientIdentity}
                   className="flex-1 py-5 px-8 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-black tracking-widest text-xs uppercase flex items-center justify-between transition-all"
                 >
                   <span>Use Manual Mode</span>
@@ -1087,6 +1192,20 @@ export default function Triage() {
                 <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
                   <CheckCircle2 className="w-6 h-6 text-blue-400" />
                 </div>
+              </div>
+
+              <div className={`mb-8 rounded-2xl border px-4 py-3 text-sm ${
+                submissionStatus === 'success'
+                  ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-200'
+                  : submissionStatus === 'error'
+                  ? 'border-red-500/30 bg-red-950/20 text-red-200'
+                  : 'border-blue-500/20 bg-blue-950/20 text-blue-200'
+              }`}>
+                {submissionStatus === 'success' && submittedCase
+                  ? `Submission stored as case #${submittedCase.submission_id}.`
+                  : submissionStatus === 'error'
+                  ? `Backend submission failed: ${submissionError}`
+                  : 'Submitting triage record to the clinical backend...'}
               </div>
 
               {/* Risk Assessment Banner */}

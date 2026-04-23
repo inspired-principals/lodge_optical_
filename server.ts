@@ -8,7 +8,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+// `process.env.PORT` is `string | undefined`; ensure we pass a `number` to `app.listen`.
+const PORT = Number(process.env.PORT ?? 3001) || 3001;
 
 app.use(express.json());
 

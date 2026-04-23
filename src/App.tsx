@@ -32,6 +32,7 @@ import { VerifyLink } from './portals/VerifyLink';
 import PatientPortal from './portals/PatientPortal';
 import DoctorPortal from './portals/DoctorPortal';
 import ControlSurface from './portals/ControlSurface';
+import CaseDetailSurface from './portals/CaseDetailSurface';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -79,6 +80,7 @@ function SiteFrame() {
           <Route path="/portal/doctor" element={<DoctorPortal />} />
           <Route path="/auth/verify" element={<VerifyLink />} />
           <Route path="/control" element={<ControlSurface />} />
+          <Route path="/control/case/:id" element={<CaseDetailSurface />} />
         </Routes>
       </ErrorBoundary>
 
@@ -98,4 +100,3 @@ export default function App() {
     </Router>
   );
 }
-
