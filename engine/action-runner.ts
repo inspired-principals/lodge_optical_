@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { runModules } from "./module-runner.ts";
 import { scoreResults, selectBest } from "./scoring.ts";
+import { emit } from "./events/bus.ts";
 
 type SystemConfig = {
   features: Record<string, boolean>;
@@ -98,6 +99,19 @@ export async function runAction(action: string, payload?: Record<string, unknown
         ? scoreResults(results, config)
         : results.map((result) => ({ ...result, score: 0, breakdown: {} }));
       const winner = config.scoring.active ? selectBest(scored) : scored[0] ?? null;
+
+      for (const scoredResult of scored) {
+        emit({
+          type: "agent_score",
+          payload: {
+            module: scoredResult.module,
+            score: scoredResult.score,
+            breakdown: scoredResult.breakdown,
+            executionTime: scoredResult.executionTime ?? 0,
+            timestamp: Date.now(),
+          },
+        });
+      }
 
       if (winner?.success) {
         snapshotConfig(config);

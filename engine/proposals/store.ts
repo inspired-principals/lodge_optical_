@@ -1,5 +1,6 @@
 import { db } from "../memory-store.ts";
 import type { Proposal, ProposalStatus } from "./schema.ts";
+import { emit } from "../events/bus.ts";
 
 const insertProposal = db.prepare(`
   INSERT INTO proposals (
@@ -48,6 +49,11 @@ export function saveProposal(proposal: Proposal) {
     proposal.status,
     proposal.author,
   );
+
+  emit({
+    type: "proposal_update",
+    payload: proposal,
+  });
 }
 
 export function getProposals(): Proposal[] {
@@ -78,4 +84,11 @@ export function getProposals(): Proposal[] {
 
 export function updateProposalStatus(id: string, status: ProposalStatus) {
   updateStatusStatement.run(status, id);
+  const proposal = getProposals().find((entry) => entry.id === id);
+  if (proposal) {
+    emit({
+      type: "proposal_update",
+      payload: proposal,
+    });
+  }
 }

@@ -25,6 +25,7 @@ type IDEWorkspaceProps = {
   onProposalStatus: (id: string, status: "approved" | "rejected") => void;
   activeModule?: string;
   error: string;
+  lastHeartbeat: number | null;
 };
 
 export default function IDEWorkspace(props: IDEWorkspaceProps) {
@@ -41,6 +42,7 @@ export default function IDEWorkspace(props: IDEWorkspaceProps) {
         activeModule={props.activeModule}
         proposalCount={props.proposals.length}
         error={props.error}
+        lastHeartbeat={props.lastHeartbeat}
       />
 
       <div className="relative grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">

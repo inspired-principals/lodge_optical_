@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getSystemEvolution, type EvolutionEvent } from "../../../services/systemControlApi";
+import { onEvent } from "../state/stream";
 
 export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
@@ -28,13 +29,37 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
     };
 
     void load();
-    const interval = window.setInterval(() => {
-      void load();
-    }, 4000);
+    const unsubscribe = onEvent((event) => {
+      if (event.type === "execution") {
+        const winner = event.payload?.result?.winner;
+        setEvents((current) => [
+          {
+            id: `execution-live-${event.payload?.timestamp ?? Date.now()}`,
+            type: "execution",
+            timestamp: Number(event.payload?.timestamp ?? Date.now()),
+            label: `Execution ${String(winner?.module ?? "unknown winner")}`,
+            score: typeof winner?.score === "number" ? winner.score : undefined,
+          },
+          ...current.filter((entry) => entry.id !== `execution-live-${event.payload?.timestamp ?? Date.now()}`).slice(0, 39),
+        ]);
+      }
+
+      if (event.type === "proposal_update" && event.payload?.id) {
+        setEvents((current) => [
+          {
+            id: String(event.payload.id),
+            type: "proposal",
+            timestamp: Number(event.payload.timestamp ?? Date.now()),
+            label: `${String(event.payload.status ?? "pending").toUpperCase()} ${String(event.payload.targetPath ?? "proposal")}`,
+          },
+          ...current.filter((entry) => entry.id !== String(event.payload.id)).slice(0, 39),
+        ]);
+      }
+    });
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      unsubscribe();
     };
   }, [adminToken]);
 

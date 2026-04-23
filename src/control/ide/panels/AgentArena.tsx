@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getSystemAgentArena, type AgentArenaEntry } from "../../../services/systemControlApi";
+import { onEvent } from "../state/stream";
 
 export default function AgentArena({ adminToken }: { adminToken: string }) {
   const [agents, setAgents] = useState<AgentArenaEntry[]>([]);
@@ -28,13 +29,40 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
     };
 
     void load();
-    const interval = window.setInterval(() => {
-      void load();
-    }, 4000);
+    const unsubscribe = onEvent((event) => {
+      if (event.type !== "agent_score") {
+        return;
+      }
+
+      setAgents((current) => {
+        const next = new Map<string, AgentArenaEntry>(current.map((agent) => [agent.name, agent] as const));
+        const name = String(event.payload?.module ?? "unknown");
+        const previous = next.get(name);
+        next.set(name, {
+          name,
+          score: Number(event.payload?.score ?? previous?.score ?? 0),
+          wins: previous?.wins ?? 0,
+          uses: previous ? previous.uses + 1 : 1,
+          avgExecutionTime: previous
+            ? (previous.avgExecutionTime * previous.uses + Number(event.payload?.executionTime ?? 0)) / (previous.uses + 1)
+            : Number(event.payload?.executionTime ?? 0),
+          isLeader: false,
+        });
+
+        const ranked = Array.from(next.values())
+          .sort((a, b) => b.score - a.score)
+          .map((agent, index) => ({
+            ...agent,
+            isLeader: index === 0,
+          }));
+
+        return ranked;
+      });
+    });
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      unsubscribe();
     };
   }, [adminToken]);
 

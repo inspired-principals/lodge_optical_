@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import IDEWorkspace from "../control/ide/IDEWorkspace";
+import { connectStream, disconnectStream, onEvent } from "../control/ide/state/stream";
+import { subscribeSystemState, updateSystemState } from "../control/ide/state/systemStore";
 import {
   createSystemProposal,
   executeSystemIntent,
@@ -22,6 +24,7 @@ export default function SystemControlSurface() {
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
   const [error, setError] = useState("");
+  const [lastHeartbeat, setLastHeartbeat] = useState<number | null>(null);
 
   useEffect(() => {
     const savedToken = window.sessionStorage.getItem("lodge-admin-token");
@@ -34,6 +37,7 @@ export default function SystemControlSurface() {
     const trimmedToken = adminToken.trim();
     if (!trimmedToken) {
       setProposals([]);
+      disconnectStream();
       return;
     }
 
@@ -53,13 +57,32 @@ export default function SystemControlSurface() {
     };
 
     void loadProposals();
-    const intervalId = window.setInterval(() => {
-      void loadProposals();
-    }, 4000);
+    connectStream(trimmedToken);
+    const unsubscribeState = subscribeSystemState((nextState) => {
+      setLastHeartbeat(nextState.lastHeartbeat);
+      const streamedProposals = Object.values(nextState.proposals) as ProposalResponse[];
+      if (streamedProposals.length > 0) {
+        setProposals((current) => {
+          const merged = new Map<string, ProposalResponse>(
+            current.map((proposal) => [proposal.id, proposal] as const),
+          );
+          for (const proposal of streamedProposals) {
+            merged.set(proposal.id, proposal);
+          }
+          return Array.from(merged.values()).sort((a, b) => b.timestamp - a.timestamp);
+        });
+      }
+    });
+
+    const unsubscribeEvents = onEvent((event) => {
+      updateSystemState(event);
+    });
 
     return () => {
       isActive = false;
-      window.clearInterval(intervalId);
+      unsubscribeState();
+      unsubscribeEvents();
+      disconnectStream();
     };
   }, [adminToken]);
 
@@ -180,6 +203,7 @@ export default function SystemControlSurface() {
           onProposalStatus={(id, status) => void handleProposalStatus(id, status)}
           activeModule={activeModule}
           error={error}
+          lastHeartbeat={lastHeartbeat}
         />
       </div>
     </div>

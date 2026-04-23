@@ -4,6 +4,7 @@ type SystemHeaderProps = {
   activeModule?: string;
   proposalCount: number;
   error: string;
+  lastHeartbeat: number | null;
 };
 
 export default function SystemHeader({
@@ -12,7 +13,11 @@ export default function SystemHeader({
   activeModule,
   proposalCount,
   error,
+  lastHeartbeat,
 }: SystemHeaderProps) {
+  const heartbeatAge = lastHeartbeat ? Date.now() - lastHeartbeat : null;
+  const heartbeatOnline = heartbeatAge !== null && heartbeatAge < 5000;
+
   return (
     <div className="grid gap-5 rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,23,42,0.82))] p-6 shadow-[0_24px_80px_rgba(2,6,23,0.45)] xl:grid-cols-[1.45fr_1fr]">
       <div className="flex flex-col justify-between gap-5">
@@ -23,6 +28,14 @@ export default function SystemHeader({
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-300">
               Human-governed evolution
+            </span>
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+              heartbeatOnline
+                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                : "border-amber-400/20 bg-amber-400/10 text-amber-200"
+            }`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${heartbeatOnline ? "animate-pulse bg-emerald-300" : "bg-amber-300"}`} />
+              {heartbeatOnline ? "Stream live" : "Stream waiting"}
             </span>
           </div>
           <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-tight text-white md:text-4xl">

@@ -1,4 +1,5 @@
 import express from "express";
+import { createServer } from "node:http";
 import { createServer as createViteServer } from "vite";
 import { SquareClient, SquareEnvironment } from "square";
 import crypto from "crypto";
@@ -6,10 +7,12 @@ import path from "path";
 import dotenv from "dotenv";
 import fs from "node:fs";
 import { execSync } from "node:child_process";
+import { WebSocket, WebSocketServer } from "ws";
 import { parseIntent } from "./engine/intent-parser.ts";
 import { decide } from "./engine/decision-engine.ts";
 import { runAction } from "./engine/action-runner.ts";
 import { recall, remember } from "./engine/memory-store.ts";
+import { emit, subscribe } from "./engine/events/bus.ts";
 import { generateDiff } from "./engine/proposals/diff.ts";
 import { getProposals, saveProposal, updateProposalStatus } from "./engine/proposals/store.ts";
 import type { Proposal, ProposalStatus, ProposalType } from "./engine/proposals/schema.ts";
@@ -17,6 +20,8 @@ import type { Proposal, ProposalStatus, ProposalType } from "./engine/proposals/
 dotenv.config();
 
 const app = express();
+const server = createServer(app);
+const wss = new WebSocketServer({ server, path: "/api/system/stream" });
 // `process.env.PORT` is `string | undefined`; ensure we pass a `number` to `app.listen`.
 const PORT = Number(process.env.PORT ?? 3001) || 3001;
 
@@ -35,6 +40,16 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   }
 
   next();
+}
+
+function isAuthorizedStream(requestUrl: string | undefined) {
+  const configuredToken = process.env.ADMIN_TOKEN;
+  if (!configuredToken || !requestUrl) {
+    return false;
+  }
+
+  const url = new URL(requestUrl, `http://127.0.0.1:${PORT}`);
+  return url.searchParams.get("token") === configuredToken;
 }
 
 const allowedProposalRoots = ["config", "engine", "modules", "src"];
@@ -110,6 +125,16 @@ app.post("/api/system/execute", requireAdmin, async (req, res) => {
     const result = await runAction(decision.action, decision.payload);
 
     remember({ input, intent, decision, result });
+    emit({
+      type: "execution",
+      payload: {
+        input,
+        intent,
+        decision,
+        result,
+        timestamp: Date.now(),
+      },
+    });
 
     return res.json({
       intent,
@@ -291,6 +316,41 @@ app.get("/api/system/agent-arena", requireAdmin, (_req, res) => {
   }
 });
 
+wss.on("connection", (socket, request) => {
+  if (!isAuthorizedStream(request.url)) {
+    socket.close(1008, "Unauthorized");
+    return;
+  }
+
+  socket.send(
+    JSON.stringify({
+      type: "heartbeat",
+      payload: {
+        timestamp: Date.now(),
+      },
+    }),
+  );
+});
+
+subscribe((event) => {
+  const data = JSON.stringify(event);
+
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  }
+});
+
+setInterval(() => {
+  emit({
+    type: "heartbeat",
+    payload: {
+      timestamp: Date.now(),
+    },
+  });
+}, 2000);
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -306,7 +366,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
