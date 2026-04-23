@@ -3,12 +3,22 @@ import { useEffect, useState } from "react";
 import { getSystemEvolution, type EvolutionEvent } from "../../../services/systemControlApi";
 import { onEvent } from "../state/stream";
 
-export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
+export default function EvolutionGraph({
+  adminToken,
+  compact = false,
+  embedded = false,
+  eventsOnly = false,
+}: {
+  adminToken: string;
+  compact?: boolean;
+  embedded?: boolean;
+  eventsOnly?: boolean;
+}) {
   const [events, setEvents] = useState<EvolutionEvent[]>([]);
 
   useEffect(() => {
     const trimmedToken = adminToken.trim();
-    if (!trimmedToken) {
+    if (!trimmedToken && !embedded) {
       setEvents([]);
       return;
     }
@@ -28,19 +38,22 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
       }
     };
 
-    void load();
+    if (!embedded) {
+      void load();
+    }
     const unsubscribe = onEvent((event) => {
       if (event.type === "execution") {
         const winner = event.payload?.result?.winner;
+        const timestamp = Number(event.payload?.timestamp ?? Date.now());
         setEvents((current) => [
           {
-            id: `execution-live-${event.payload?.timestamp ?? Date.now()}`,
+            id: `execution-live-${timestamp}`,
             type: "execution",
-            timestamp: Number(event.payload?.timestamp ?? Date.now()),
+            timestamp,
             label: `Execution ${String(winner?.module ?? "unknown winner")}`,
             score: typeof winner?.score === "number" ? winner.score : undefined,
           },
-          ...current.filter((entry) => entry.id !== `execution-live-${event.payload?.timestamp ?? Date.now()}`).slice(0, 39),
+          ...current.filter((entry) => entry.id !== `execution-live-${timestamp}`).slice(0, 39),
         ]);
       }
 
@@ -50,7 +63,9 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
             id: String(event.payload.id),
             type: "proposal",
             timestamp: Number(event.payload.timestamp ?? Date.now()),
-            label: `${String(event.payload.status ?? "pending").toUpperCase()} ${String(event.payload.targetPath ?? "proposal")}`,
+            label: `${String(event.payload.status ?? "pending").toUpperCase()} ${String(
+              event.payload.targetPath ?? "proposal",
+            )}`,
           },
           ...current.filter((entry) => entry.id !== String(event.payload.id)).slice(0, 39),
         ]);
@@ -61,10 +76,14 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
       active = false;
       unsubscribe();
     };
-  }, [adminToken]);
+  }, [adminToken, embedded]);
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.94))] p-5 shadow-[0_18px_60px_rgba(2,6,23,0.3)]">
+    <section
+      className={`h-full rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.94))] shadow-[0_18px_60px_rgba(2,6,23,0.3)] ${
+        compact ? "p-4" : "p-5"
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Evolution View</p>
@@ -75,15 +94,17 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-slate-950/50 p-4">
-        <div className="grid grid-cols-3 gap-3">
-          <Insight label="Events" value={String(events.length)} />
-          <Insight label="Recent proposals" value={String(events.filter((event) => event.type === "proposal").length)} />
-          <Insight label="Executions" value={String(events.filter((event) => event.type === "execution").length)} />
+      {!eventsOnly ? (
+        <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-slate-950/50 p-4">
+          <div className="grid grid-cols-3 gap-3">
+            <Insight label="Events" value={String(events.length)} />
+            <Insight label="Recent proposals" value={String(events.filter((event) => event.type === "proposal").length)} />
+            <Insight label="Executions" value={String(events.filter((event) => event.type === "execution").length)} />
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+      <div className={`mt-4 space-y-3 overflow-y-auto pr-1 ${compact ? "max-h-[280px]" : "max-h-[420px]"}`}>
         {events.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-5 text-sm text-slate-400">
             No evolution events available yet.
@@ -91,13 +112,15 @@ export default function EvolutionGraph({ adminToken }: { adminToken: string }) {
         ) : (
           events.map((event) => (
             <div key={event.id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3">
-              <div className={`absolute left-0 top-0 h-full w-1 ${
-                event.type === "proposal"
-                  ? "bg-violet-400/70"
-                  : event.type === "commit"
-                  ? "bg-emerald-400/70"
-                  : "bg-cyan-400/70"
-              }`} />
+              <div
+                className={`absolute left-0 top-0 h-full w-1 ${
+                  event.type === "proposal"
+                    ? "bg-violet-400/70"
+                    : event.type === "commit"
+                      ? "bg-emerald-400/70"
+                      : "bg-cyan-400/70"
+                }`}
+              />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{event.type}</p>

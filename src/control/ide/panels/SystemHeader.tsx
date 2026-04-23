@@ -19,7 +19,7 @@ export default function SystemHeader({
   const heartbeatOnline = heartbeatAge !== null && heartbeatAge < 5000;
 
   return (
-    <div className="grid gap-5 rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,23,42,0.82))] p-6 shadow-[0_24px_80px_rgba(2,6,23,0.45)] xl:grid-cols-[1.45fr_1fr]">
+    <div className="grid h-full items-center gap-4 bg-[linear-gradient(135deg,rgba(15,23,42,0.98),rgba(15,23,42,0.9))] px-5 xl:grid-cols-[1.45fr_1fr]">
       <div className="flex flex-col justify-between gap-5">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -38,15 +38,15 @@ export default function SystemHeader({
               {heartbeatOnline ? "Stream live" : "Stream waiting"}
             </span>
           </div>
-          <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-tight text-white md:text-4xl">
+          <h1 className="mt-3 max-w-4xl text-2xl font-black tracking-tight text-white md:text-[2rem]">
             Lodge Optical Evolution Workspace
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 md:text-[15px]">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
             Govern the live decision system, inspect evolution pressure, and review file-level proposals without mutating runtime logic directly.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="hidden gap-3 sm:grid-cols-3 xl:grid">
           <SignalCard label="Mutation Surface" value="Proposal-first" tone="cyan" />
           <SignalCard label="Runtime Policy" value="No direct writes" tone="violet" />
           <SignalCard label="Governance" value="Review required" tone="emerald" />

@@ -3,7 +3,13 @@ import { useEffect, useState } from "react";
 import { getSystemAgentArena, type AgentArenaEntry } from "../../../services/systemControlApi";
 import { onEvent } from "../state/stream";
 
-export default function AgentArena({ adminToken }: { adminToken: string }) {
+export default function AgentArena({
+  adminToken,
+  compact = false,
+}: {
+  adminToken: string;
+  compact?: boolean;
+}) {
   const [agents, setAgents] = useState<AgentArenaEntry[]>([]);
 
   useEffect(() => {
@@ -44,19 +50,18 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
           wins: previous?.wins ?? 0,
           uses: previous ? previous.uses + 1 : 1,
           avgExecutionTime: previous
-            ? (previous.avgExecutionTime * previous.uses + Number(event.payload?.executionTime ?? 0)) / (previous.uses + 1)
+            ? (previous.avgExecutionTime * previous.uses + Number(event.payload?.executionTime ?? 0)) /
+              (previous.uses + 1)
             : Number(event.payload?.executionTime ?? 0),
           isLeader: false,
         });
 
-        const ranked = Array.from(next.values())
+        return Array.from(next.values())
           .sort((a, b) => b.score - a.score)
           .map((agent, index) => ({
             ...agent,
             isLeader: index === 0,
           }));
-
-        return ranked;
       });
     });
 
@@ -67,7 +72,11 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
   }, [adminToken]);
 
   return (
-    <section className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.94))] p-5 shadow-[0_18px_60px_rgba(2,6,23,0.3)]">
+    <section
+      className={`h-full rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.94))] shadow-[0_18px_60px_rgba(2,6,23,0.3)] ${
+        compact ? "p-4" : "p-5"
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Agent Arena</p>
@@ -84,7 +93,7 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
         <StatCard label="Top Score" value={agents[0] ? agents[0].score.toFixed(3) : "0.000"} />
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className={`mt-4 space-y-3 ${compact ? "max-h-[280px] overflow-y-auto pr-1" : ""}`}>
         {agents.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-5 text-sm text-slate-400">
             No strategy data available yet.
@@ -102,9 +111,7 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white">{agent.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Uses {agent.uses} • Wins {agent.wins}
-                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Uses {agent.uses} | Wins {agent.wins}</p>
                 </div>
                 {agent.isLeader ? (
                   <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100">
@@ -120,9 +127,7 @@ export default function AgentArena({ adminToken }: { adminToken: string }) {
 
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
                 <div
-                  className={`h-full rounded-full ${
-                    agent.isLeader ? "bg-cyan-400" : "bg-white/30"
-                  }`}
+                  className={`h-full rounded-full ${agent.isLeader ? "bg-cyan-400" : "bg-white/30"}`}
                   style={{ width: `${Math.min(100, Math.max(8, agent.score * 100))}%` }}
                 />
               </div>
